@@ -230,6 +230,7 @@ function App(){
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [showAllocEdit, setShowAllocEdit] = useState(false);
+  const [showPeriodEdit, setShowPeriodEdit] = useState(false);
   const [author, setAuthor] = useState(localStorage.getItem('carnet_author') || '');
 
   useEffect(() => {
@@ -368,6 +369,21 @@ function App(){
     setShowAllocEdit(false);
   }
 
+  async function updatePeriod(startStr, endStr){
+    const label = `${fmtDateShort(startStr)} – ${fmtDateLong(endStr)}`;
+    const { data, error } = await supabase.from('periods')
+      .update({ start_date: startStr, end_date: endStr, label })
+      .eq('id', currentPeriod.id).select().single();
+    if (!error) {
+      const updated = [...periods];
+      updated[periodIndex] = data;
+      updated.sort((a,b) => a.start_date.localeCompare(b.start_date));
+      setPeriods(updated);
+      setPeriodIndex(updated.findIndex(p => p.id === data.id));
+    }
+    setShowPeriodEdit(false);
+  }
+
   function saveAuthor(name){
     setAuthor(name);
     localStorage.setItem('carnet_author', name);
@@ -398,7 +414,7 @@ function App(){
 
       <div className="period-bar">
         <button className="nav" onClick={goPrev} aria-label="Période précédente">←</button>
-        <div className="period-label">
+        <div className="period-label" onClick={() => setShowPeriodEdit(true)} style={{cursor:'pointer'}}>
           <div className="dates">{fmtDateShort(currentPeriod.start_date)} – {fmtDateLong(currentPeriod.end_date)}</div>
           <div className="days-left">{daysLeft} jour{daysLeft>1?'s':''} restant{daysLeft>1?'s':''}</div>
         </div>
@@ -420,35 +436,47 @@ function App(){
         </div>
       </div>
 
-      <div>
-        {categories.map(cat => {
-          const spent = spentFor(cat.id);
-          const alloc = allocFor(cat.id);
-          const pct = alloc > 0 ? Math.min(100, (spent/alloc)*100) : (spent > 0 ? 100 : 0);
-          const over = spent > alloc;
-          return (
-            <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
-              <div className="envelope-top">
-                <div>
-                  <div className="envelope-name">{cat.name}</div>
-                  <div className="envelope-type">{cat.type}</div>
-                </div>
-                <div className="envelope-nums">
-                  <div className="spent">{fmt(spent)}</div>
-                  <div className="of">sur {fmt(alloc)}</div>
-                </div>
-              </div>
-              <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
-              <div className="envelope-footer">
-                <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
-                  {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
-                </span>
-              </div>
+      {['fixe','variable'].map(type => {
+        const catsOfType = categories.filter(c => c.type === type);
+        if (!catsOfType.length) return null;
+        const subAlloc = catsOfType.reduce((s,c) => s + allocFor(c.id), 0);
+        const subSpent = catsOfType.reduce((s,c) => s + spentFor(c.id), 0);
+        return (
+          <div key={type}>
+            <div className="section-title" style={{margin:'20px 2px 10px'}}>
+              {type === 'fixe' ? 'Charges fixes' : 'Charges variables'}
+              <span className="mono" style={{fontSize:'0.75rem', opacity:0.8, marginLeft:8}}>{fmt(subSpent)} / {fmt(subAlloc)}</span>
             </div>
-          );
-        })}
-        <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowAllocEdit(true)}>Ajuster les montants alloués de cette période</button>
-      </div>
+            {catsOfType.map(cat => {
+              const spent = spentFor(cat.id);
+              const alloc = allocFor(cat.id);
+              const pct = alloc > 0 ? Math.min(100, (spent/alloc)*100) : (spent > 0 ? 100 : 0);
+              const over = spent > alloc;
+              return (
+                <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
+                  <div className="envelope-top">
+                    <div>
+                      <div className="envelope-name">{cat.name}</div>
+                      <div className="envelope-type">{cat.type}</div>
+                    </div>
+                    <div className="envelope-nums">
+                      <div className="spent">{fmt(spent)}</div>
+                      <div className="of">sur {fmt(alloc)}</div>
+                    </div>
+                  </div>
+                  <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
+                  <div className="envelope-footer">
+                    <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
+                      {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+      <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowAllocEdit(true)}>Ajuster les montants alloués de cette période</button>
 
       <button className="add-btn" onClick={() => setShowAddExpense(true)}>+ Ajouter une dépense</button>
 
@@ -503,6 +531,13 @@ function App(){
           onSubmit={updateAllocations}
         />
       )}
+      {showPeriodEdit && (
+        <PeriodEditSheet
+          period={currentPeriod}
+          onClose={() => setShowPeriodEdit(false)}
+          onSubmit={updatePeriod}
+        />
+      )}
     </div>
   );
 }
@@ -551,6 +586,36 @@ function AddExpenseSheet({ categories, author, onSaveAuthor, expense, onClose, o
         <div className="field">
           <label>Ton prénom</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Pour savoir qui a dépensé quoi" />
+        </div>
+        <div className="sheet-actions">
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-primary" onClick={submit}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PeriodEditSheet({ period, onClose, onSubmit }){
+  const [startDate, setStartDate] = useState(period.start_date);
+  const [endDate, setEndDate] = useState(period.end_date);
+
+  function submit(){
+    if (!startDate || !endDate || endDate < startDate) return;
+    onSubmit(startDate, endDate);
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()}>
+        <h2>Modifier les dates de la période</h2>
+        <div className="field">
+          <label>Début</label>
+          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Fin</label>
+          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
         </div>
         <div className="sheet-actions">
           <button className="btn-secondary" onClick={onClose}>Annuler</button>
