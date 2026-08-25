@@ -405,6 +405,21 @@ function App(){
     const { data, error } = await supabase.from('recurring_expenses').insert({ ...payload, active: true }).select().single();
     if (error) { console.error(error); alert("Erreur à l'ajout : " + error.message); return; }
     setRecurringExpenses([...recurringExpenses, data]);
+    const { data: expense, error: expenseError } = await supabase.from('expenses').insert({
+      period_id: currentPeriod.id,
+      category_id: data.category_id,
+      label: data.label,
+      amount: data.amount,
+      date: currentPeriod.start_date,
+      author: 'Auto',
+      is_fixed: true
+    }).select().single();
+    if (expenseError) {
+      console.error(expenseError);
+      alert("La charge récurrente est enregistrée, mais n'a pas pu être ajoutée à cette période : " + expenseError.message);
+      return;
+    }
+    setExpenses([expense, ...expenses]);
   }
 
   async function updateRecurring(id, payload){
@@ -749,8 +764,12 @@ function RecurringManageSheet({ categories, recurring, onAdd, onUpdate, onDelete
   const [newAmount, setNewAmount] = useState('');
 
   function submitNew(){
-    if (!newCategoryId || !newLabel || !newAmount) return;
-    onAdd({ category_id: newCategoryId, label: newLabel, amount: parseFloat(String(newAmount).replace(',', '.')) });
+    const amount = parseFloat(String(newAmount).replace(',', '.'));
+    if (!newCategoryId || !newLabel.trim() || !Number.isFinite(amount) || amount <= 0) {
+      alert('Renseigne un libellé et un montant supérieur à zéro.');
+      return;
+    }
+    onAdd({ category_id: newCategoryId, label: newLabel.trim(), amount });
     setNewLabel('');
     setNewAmount('');
   }
