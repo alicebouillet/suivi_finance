@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Le Carnet — suivi des dépenses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+  :root{
+    --ink: #16302B;
+    --ink-soft: #234139;
+    --paper: #EFE9D8;
+    --paper-dim: #E4DDC8;
+    --line: #C9C0A4;
+    --text: #1E2A22;
+    --text-dim: #5B6459;
+    --clay: #C1642F;
+    --teal: #3E7C74;
+    --amber: #D9A441;
+    --moss: #6B8F47;
+    --danger: #A6402F;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    background-image:
+      radial-gradient(ellipse at top left, rgba(255,255,255,0.05), transparent 55%);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .serif{font-family:'Fraunces', serif;}
+  ::selection{background:var(--amber); color:var(--ink);}
+
+  #root{max-width:760px; margin:0 auto; padding:20px 16px 80px;}
+
+  .brand{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:10px 2px 22px; color:var(--paper);
+  }
+  .brand h1{
+    font-family:'Fraunces', serif; font-weight:700; font-size:1.5rem; margin:0;
+    letter-spacing:-0.01em;
+  }
+  .brand .sub{font-size:0.72rem; color:#A9BFB6; letter-spacing:0.06em; text-transform:uppercase; margin-top:3px;}
+
+  .period-bar{
+    background:var(--paper); border-radius:14px; padding:14px 16px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.25);
+    border:1px solid var(--line);
+  }
+  .period-bar button.nav{
+    background:none; border:none; font-size:1.1rem; color:var(--ink-soft);
+    cursor:pointer; padding:6px 10px; border-radius:8px; line-height:1;
+  }
+  .period-bar button.nav:hover{background:var(--paper-dim);}
+  .period-label{text-align:center; flex:1;}
+  .period-label .dates{font-family:'Fraunces', serif; font-weight:600; font-size:1.05rem;}
+  .period-label .days-left{font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px;}
+
+  .summary-row{display:flex; gap:10px; margin:16px 0 22px;}
+  .summary-card{
+    flex:1; background:var(--paper); border-radius:12px; padding:12px 14px;
+    border:1px solid var(--line);
+  }
+  .summary-card .k{font-size:0.65rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim);}
+  .summary-card .v{font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1.15rem; margin-top:2px;}
+  .summary-card.warn .v{color:var(--danger);}
+
+  .envelope{
+    position:relative;
+    background:var(--paper);
+    border-radius:10px;
+    margin-bottom:12px;
+    padding:14px 16px 16px;
+    border:1px solid var(--line);
+    border-left:5px solid var(--cat-color, var(--teal));
+    box-shadow:0 4px 14px rgba(0,0,0,0.12);
+  }
+  .envelope-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .envelope-name{font-family:'Fraunces', serif; font-weight:600; font-size:1.05rem;}
+  .envelope-type{font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-top:1px;}
+  .envelope-nums{text-align:right;}
+  .envelope-nums .spent{font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1rem;}
+  .envelope-nums .of{font-size:0.72rem; color:var(--text-dim);}
+  .bar-track{height:7px; background:var(--paper-dim); border-radius:4px; margin-top:10px; overflow:hidden;}
+  .bar-fill{height:100%; border-radius:4px; background:var(--cat-color, var(--teal)); transition:width .3s ease;}
+  .bar-fill.over{background:var(--danger);}
+  .envelope-footer{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+  .remaining{font-size:0.78rem; color:var(--text-dim);}
+  .remaining.neg{color:var(--danger); font-weight:600;}
+  .edit-alloc{
+    background:none; border:none; color:var(--text-dim); text-decoration:underline;
+    font-size:0.72rem; cursor:pointer; padding:0;
+  }
+
+  .add-btn{
+    width:100%; margin-top:6px; padding:13px; border-radius:12px;
+    background:var(--amber); color:var(--ink); border:none;
+    font-family:'Fraunces', serif; font-weight:600; font-size:0.95rem;
+    cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.25);
+  }
+  .add-btn:active{transform:translateY(1px);}
+
+  .section-title{
+    color:var(--paper); font-family:'Fraunces', serif; font-size:0.95rem;
+    margin:26px 2px 10px; opacity:0.85;
+  }
+
+  .expense-row{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--paper); border-radius:10px; padding:10px 14px; margin-bottom:8px;
+    border:1px solid var(--line);
+  }
+  .expense-left{display:flex; align-items:center; gap:10px;}
+  .dot{width:9px; height:9px; border-radius:50%; background:var(--cat-color);}
+  .expense-info .label{font-size:0.88rem; font-weight:500;}
+  .expense-info .meta{font-size:0.68rem; color:var(--text-dim); margin-top:1px;}
+  .expense-right{display:flex; align-items:center; gap:10px;}
+  .expense-amount{font-family:'IBM Plex Mono', monospace; font-weight:600;}
+  .del-btn{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1rem; padding:2px 4px;}
+  .del-btn:hover{color:var(--danger);}
+  .empty-note{color:#A9BFB6; font-size:0.82rem; text-align:center; padding:16px 0; font-style:italic;}
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(15,20,17,0.55);
+    display:flex; align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .sheet{
+    background:var(--paper); width:100%; max-width:760px; border-radius:18px 18px 0 0;
+    padding:22px 18px 26px; box-shadow:0 -10px 30px rgba(0,0,0,0.4);
+    max-height:88vh; overflow-y:auto;
+  }
+  .sheet h2{font-family:'Fraunces', serif; margin:0 0 16px; font-size:1.15rem;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:5px;}
+  .field input, .field select{
+    width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--line);
+    background:#fff; font-family:'Inter', sans-serif; font-size:0.95rem; color:var(--text);
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--teal); outline-offset:1px;}
+  .cat-choice{display:flex; flex-wrap:wrap; gap:8px;}
+  .cat-choice button{
+    padding:9px 13px; border-radius:20px; border:1px solid var(--line); background:#fff;
+    font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:6px;
+  }
+  .cat-choice button.active{background:var(--cat-color); color:#fff; border-color:transparent;}
+  .sheet-actions{display:flex; gap:10px; margin-top:18px;}
+  .btn-primary{
+    flex:1; padding:13px; border-radius:10px; border:none; background:var(--ink);
+    color:var(--paper); font-weight:600; cursor:pointer; font-size:0.95rem;
+  }
+  .btn-secondary{
+    padding:13px 18px; border-radius:10px; border:1px solid var(--line); background:none;
+    color:var(--text-dim); cursor:pointer; font-size:0.95rem;
+  }
+  .alloc-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px;}
+  .alloc-row .name{font-size:0.9rem; display:flex; align-items:center; gap:8px;}
+  .alloc-row input{width:100px; text-align:right;}
+
+  .loading, .setup{color:var(--paper); text-align:center; padding:60px 20px; line-height:1.6;}
+  .setup code{background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;}
+
+  @media (max-width:420px){
+    .brand h1{font-size:1.25rem;}
+    .summary-card .v{font-size:1rem;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+const createClient = window.supabase.createClient;
+
+const CAT_COLORS = { "#C1642F":"clay", "#3E7C74":"teal", "#D9A441":"amber", "#6B8F47":"moss" };
+
+function fmt(n){
+  return new Intl.NumberFormat('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n) + " €";
+}
+
+function addOneMonthMinusOneDay(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  const next = new Date(d.getFullYear(), d.getMonth()+1, d.getDate());
+  next.setDate(next.getDate()-1);
+  return next.toISOString().slice(0,10);
+}
+function addOneDay(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate()+1);
+  return d.toISOString().slice(0,10);
+}
+function fmtDateLong(dateStr){
+  return new Date(dateStr + "T00:00:00").toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'});
+}
+function fmtDateShort(dateStr){
+  return new Date(dateStr + "T00:00:00").toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
+}
+
+function App(){
+  const [supabase, setSupabase] = useState(null);
+  const [configError, setConfigError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [periods, setPeriods] = useState([]);
+  const [periodIndex, setPeriodIndex] = useState(0);
+  const [allocations, setAllocations] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [showAddExpense, setShowAddExpense] = useState(false);
+  const [showAllocEdit, setShowAllocEdit] = useState(false);
+  const [author, setAuthor] = useState(localStorage.getItem('carnet_author') || '');
+
+  useEffect(() => {
+    if (typeof SUPABASE_URL === 'undefined' || SUPABASE_URL.includes('TON-PROJET')) {
+      setConfigError(true);
+      setLoading(false);
+      return;
+    }
+    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    setSupabase(sb);
+  }, []);
+
+  useEffect(() => { if (supabase) initData(); }, [supabase]);
+
+  async function initData(){
+    setLoading(true);
+    const { data: cats } = await supabase.from('categories').select('*').order('sort_order');
+    setCategories(cats || []);
+    let { data: pers } = await supabase.from('periods').select('*').order('start_date');
+    if (!pers || pers.length === 0) {
+      pers = [await createPeriodForToday(cats)];
+    }
+    setPeriods(pers);
+    const todayIdx = findCurrentPeriodIndex(pers);
+    setPeriodIndex(todayIdx);
+    setLoading(false);
+  }
+
+  function findCurrentPeriodIndex(pers){
+    const today = new Date().toISOString().slice(0,10);
+    const idx = pers.findIndex(p => p.start_date <= today && today <= p.end_date);
+    return idx >= 0 ? idx : pers.length - 1;
+  }
+
+  async function createPeriodForToday(cats){
+    const today = new Date();
+    // Par défaut on propose le 25 du mois courant ou précédent selon la date du jour
+    let startDate = new Date(today.getFullYear(), today.getMonth(), 25);
+    if (today.getDate() < 25) startDate = new Date(today.getFullYear(), today.getMonth()-1, 25);
+    const startStr = startDate.toISOString().slice(0,10);
+    return await createPeriod(startStr, cats || categories);
+  }
+
+  async function createPeriod(startStr, cats){
+    const endStr = addOneMonthMinusOneDay(startStr);
+    const label = `${fmtDateShort(startStr)} – ${fmtDateLong(endStr)}`;
+    const { data, error } = await supabase.from('periods').insert({
+      start_date: startStr, end_date: endStr, label
+    }).select().single();
+    if (error) { console.error(error); return null; }
+    const useCats = cats && cats.length ? cats : categories;
+    if (useCats.length) {
+      await supabase.from('period_allocations').insert(
+        useCats.map(c => ({ period_id: data.id, category_id: c.id, allocated: c.default_allocated }))
+      );
+    }
+    return data;
+  }
+
+  const currentPeriod = periods[periodIndex];
+
+  useEffect(() => {
+    if (currentPeriod) loadPeriodData(currentPeriod.id);
+  }, [currentPeriod && currentPeriod.id]);
+
+  async function loadPeriodData(periodId){
+    const { data: allocs } = await supabase.from('period_allocations').select('*').eq('period_id', periodId);
+    setAllocations(allocs || []);
+    const { data: exps } = await supabase.from('expenses').select('*').eq('period_id', periodId).order('date', { ascending:false });
+    setExpenses(exps || []);
+  }
+
+  async function goPrev(){
+    if (periodIndex > 0) { setPeriodIndex(periodIndex - 1); return; }
+    // créer une période antérieure
+    const first = periods[0];
+    const newEnd = new Date(first.start_date + "T00:00:00");
+    newEnd.setDate(newEnd.getDate()-1);
+    const newStart = new Date(newEnd);
+    newStart.setDate(newStart.getDate() - 30);
+    newStart.setDate(25);
+    if (newStart >= newEnd) newStart.setMonth(newStart.getMonth()-1);
+    const p = await createPeriod(newStart.toISOString().slice(0,10));
+    const updated = [p, ...periods];
+    setPeriods(updated);
+    setPeriodIndex(0);
+  }
+
+  async function goNext(){
+    if (periodIndex < periods.length - 1) { setPeriodIndex(periodIndex + 1); return; }
+    const last = periods[periods.length-1];
+    const newStart = addOneDay(last.end_date);
+    const p = await createPeriod(newStart);
+    const updated = [...periods, p];
+    setPeriods(updated);
+    setPeriodIndex(updated.length - 1);
+  }
+
+  function spentFor(categoryId){
+    return expenses.filter(e => e.category_id === categoryId).reduce((s,e) => s + Number(e.amount), 0);
+  }
+  function allocFor(categoryId){
+    const a = allocations.find(a => a.category_id === categoryId);
+    return a ? Number(a.allocated) : 0;
+  }
+
+  const totals = useMemo(() => {
+    const allocated = allocations.reduce((s,a) => s + Number(a.allocated), 0);
+    const spent = expenses.reduce((s,e) => s + Number(e.amount), 0);
+    return { allocated, spent, remaining: allocated - spent };
+  }, [allocations, expenses]);
+
+  async function addExpense(payload){
+    const withAuthor = { ...payload, period_id: currentPeriod.id, author };
+    const { data, error } = await supabase.from('expenses').insert(withAuthor).select().single();
+    if (!error) setExpenses([data, ...expenses]);
+    setShowAddExpense(false);
+  }
+
+  async function deleteExpense(id){
+    await supabase.from('expenses').delete().eq('id', id);
+    setExpenses(expenses.filter(e => e.id !== id));
+  }
+
+  async function updateAllocations(newAllocs){
+    for (const a of newAllocs) {
+      await supabase.from('period_allocations').update({ allocated: a.allocated }).eq('id', a.id);
+    }
+    setAllocations(newAllocs);
+    setShowAllocEdit(false);
+  }
+
+  function saveAuthor(name){
+    setAuthor(name);
+    localStorage.setItem('carnet_author', name);
+  }
+
+  if (configError) {
+    return (
+      <div className="setup">
+        <h2 className="serif">Configuration requise</h2>
+        <p>Ouvre <code>config.js</code> et renseigne ton <code>SUPABASE_URL</code> et ta <code>SUPABASE_ANON_KEY</code>, puis recharge la page.</p>
+      </div>
+    );
+  }
+  if (loading || !currentPeriod) {
+    return <div className="loading serif">Ouverture du carnet…</div>;
+  }
+
+  const daysLeft = Math.max(0, Math.ceil((new Date(currentPeriod.end_date) - new Date()) / 86400000) + 1);
+
+  return (
+    <div>
+      <div className="brand">
+        <div>
+          <h1>Le Carnet</h1>
+          <div className="sub">Suivi des dépenses</div>
+        </div>
+      </div>
+
+      <div className="period-bar">
+        <button className="nav" onClick={goPrev} aria-label="Période précédente">←</button>
+        <div className="period-label">
+          <div className="dates">{fmtDateShort(currentPeriod.start_date)} – {fmtDateLong(currentPeriod.end_date)}</div>
+          <div className="days-left">{daysLeft} jour{daysLeft>1?'s':''} restant{daysLeft>1?'s':''}</div>
+        </div>
+        <button className="nav" onClick={goNext} aria-label="Période suivante">→</button>
+      </div>
+
+      <div className="summary-row">
+        <div className="summary-card">
+          <div className="k">Alloué</div>
+          <div className="v mono">{fmt(totals.allocated)}</div>
+        </div>
+        <div className="summary-card">
+          <div className="k">Dépensé</div>
+          <div className="v mono">{fmt(totals.spent)}</div>
+        </div>
+        <div className={"summary-card" + (totals.remaining < 0 ? " warn" : "")}>
+          <div className="k">Reste</div>
+          <div className="v mono">{fmt(totals.remaining)}</div>
+        </div>
+      </div>
+
+      <div>
+        {categories.map(cat => {
+          const spent = spentFor(cat.id);
+          const alloc = allocFor(cat.id);
+          const pct = alloc > 0 ? Math.min(100, (spent/alloc)*100) : (spent > 0 ? 100 : 0);
+          const over = spent > alloc;
+          return (
+            <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
+              <div className="envelope-top">
+                <div>
+                  <div className="envelope-name">{cat.name}</div>
+                  <div className="envelope-type">{cat.type}</div>
+                </div>
+                <div className="envelope-nums">
+                  <div className="spent">{fmt(spent)}</div>
+                  <div className="of">sur {fmt(alloc)}</div>
+                </div>
+              </div>
+              <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
+              <div className="envelope-footer">
+                <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
+                  {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+        <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowAllocEdit(true)}>Ajuster les montants alloués de cette période</button>
+      </div>
+
+      <button className="add-btn" onClick={() => setShowAddExpense(true)}>+ Ajouter une dépense</button>
+
+      <div className="section-title">Dépenses de la période</div>
+      {expenses.length === 0 && <div className="empty-note">Aucune dépense enregistrée pour l'instant.</div>}
+      {expenses.map(e => {
+        const cat = categories.find(c => c.id === e.category_id);
+        return (
+          <div className="expense-row" key={e.id}>
+            <div className="expense-left">
+              <div className="dot" style={{"--cat-color": cat ? cat.color : '#999', background: cat ? cat.color : '#999'}}></div>
+              <div className="expense-info">
+                <div className="label">{e.label}</div>
+                <div className="meta">{fmtDateShort(e.date)} · {cat ? cat.name : ''}{e.author ? ' · ' + e.author : ''}</div>
+              </div>
+            </div>
+            <div className="expense-right">
+              <div className="expense-amount">{fmt(e.amount)}</div>
+              <button className="del-btn" onClick={() => deleteExpense(e.id)} aria-label="Supprimer">✕</button>
+            </div>
+          </div>
+        );
+      })}
+
+      {showAddExpense && (
+        <AddExpenseSheet
+          categories={categories}
+          author={author}
+          onSaveAuthor={saveAuthor}
+          onClose={() => setShowAddExpense(false)}
+          onSubmit={addExpense}
+        />
+      )}
+      {showAllocEdit && (
+        <AllocEditSheet
+          categories={categories}
+          allocations={allocations}
+          onClose={() => setShowAllocEdit(false)}
+          onSubmit={updateAllocations}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddExpenseSheet({ categories, author, onSaveAuthor, onClose, onSubmit }){
+  const [categoryId, setCategoryId] = useState(categories[0] ? categories[0].id : null);
+  const [label, setLabel] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+  const [name, setName] = useState(author);
+
+  function submit(){
+    if (!categoryId || !amount || !label) return;
+    onSaveAuthor(name);
+    onSubmit({ category_id: categoryId, label, amount: parseFloat(amount.replace(',', '.')), date });
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()}>
+        <h2>Ajouter une dépense</h2>
+        <div className="field">
+          <label>Catégorie</label>
+          <div className="cat-choice">
+            {categories.map(c => (
+              <button key={c.id} type="button"
+                className={categoryId === c.id ? "active" : ""}
+                style={{"--cat-color": c.color}}
+                onClick={() => setCategoryId(c.id)}>{c.name}</button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <label>Description</label>
+          <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex. Courses, essence, ciné…" />
+        </div>
+        <div className="field">
+          <label>Montant (€)</label>
+          <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" />
+        </div>
+        <div className="field">
+          <label>Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Ton prénom</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Pour savoir qui a dépensé quoi" />
+        </div>
+        <div className="sheet-actions">
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-primary" onClick={submit}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AllocEditSheet({ categories, allocations, onClose, onSubmit }){
+  const [values, setValues] = useState(
+    Object.fromEntries(allocations.map(a => [a.id, a.allocated]))
+  );
+
+  function submit(){
+    const updated = allocations.map(a => ({ ...a, allocated: parseFloat(String(values[a.id]).replace(',', '.')) || 0 }));
+    onSubmit(updated);
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()}>
+        <h2>Montants alloués — cette période</h2>
+        {allocations.map(a => {
+          const cat = categories.find(c => c.id === a.category_id);
+          if (!cat) return null;
+          return (
+            <div className="alloc-row" key={a.id}>
+              <div className="name">
+                <span className="dot" style={{background: cat.color, width:9, height:9, borderRadius:'50%', display:'inline-block'}}></span>
+                {cat.name}
+              </div>
+              <input
+                value={values[a.id]}
+                onChange={e => setValues({ ...values, [a.id]: e.target.value })}
+                inputMode="decimal"
+              />
+            </div>
+          );
+        })}
+        <div className="sheet-actions">
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-primary" onClick={submit}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
