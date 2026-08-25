@@ -403,16 +403,19 @@ function App(){
 
   async function addRecurring(payload){
     const { data, error } = await supabase.from('recurring_expenses').insert({ ...payload, active: true }).select().single();
-    if (!error) setRecurringExpenses([...recurringExpenses, data]);
+    if (error) { console.error(error); alert("Erreur à l'ajout : " + error.message); return; }
+    setRecurringExpenses([...recurringExpenses, data]);
   }
 
   async function updateRecurring(id, payload){
     const { data, error } = await supabase.from('recurring_expenses').update(payload).eq('id', id).select().single();
-    if (!error) setRecurringExpenses(recurringExpenses.map(r => r.id === id ? data : r));
+    if (error) { console.error(error); alert("Erreur à la modification : " + error.message); return; }
+    setRecurringExpenses(recurringExpenses.map(r => r.id === id ? data : r));
   }
 
   async function deleteRecurring(id){
-    await supabase.from('recurring_expenses').delete().eq('id', id);
+    const { error } = await supabase.from('recurring_expenses').delete().eq('id', id);
+    if (error) { console.error(error); alert("Erreur à la suppression : " + error.message); return; }
     setRecurringExpenses(recurringExpenses.filter(r => r.id !== id));
   }
 
