@@ -338,10 +338,11 @@ function App(){
   }
 
   const totals = useMemo(() => {
-    const allocated = allocations.reduce((s,a) => s + Number(a.allocated), 0);
+    // basé sur les catégories affichées, pas sur les allocations brutes (peut contenir des lignes orphelines)
+    const allocated = categories.reduce((s,c) => s + allocFor(c.id), 0);
     const spent = expenses.reduce((s,e) => s + Number(e.amount), 0);
     return { allocated, spent, remaining: allocated - spent };
-  }, [allocations, expenses]);
+  }, [categories, allocations, expenses]);
 
   async function addExpense(payload){
     const withAuthor = { ...payload, period_id: currentPeriod.id, author };
