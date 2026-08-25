@@ -10,6 +10,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="config.js"></script>
 <style>
   :root{
@@ -130,6 +131,16 @@
   .del-btn{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1rem; padding:2px 4px;}
   .del-btn:hover{color:var(--danger);}
   .empty-note{color:#A9BFB6; font-size:0.82rem; text-align:center; padding:16px 0; font-style:italic;}
+  .expense-row{cursor:pointer;}
+
+  .charts-row{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px;}
+  .chart-card{
+    flex:1; min-width:220px; background:var(--paper); border-radius:12px; padding:14px;
+    border:1px solid var(--line);
+  }
+  .chart-card h3{font-family:'Fraunces', serif; font-size:0.9rem; margin:0 0 10px;}
+  .chart-card .chart-wrap{position:relative; height:200px;}
+  .chart-card .empty-note{padding:8px 0;}
 
   .overlay{
     position:fixed; inset:0; background:rgba(15,20,17,0.55);
@@ -217,6 +228,7 @@ function App(){
   const [allocations, setAllocations] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
   const [showAllocEdit, setShowAllocEdit] = useState(false);
   const [author, setAuthor] = useState(localStorage.getItem('carnet_author') || '');
 
@@ -337,6 +349,12 @@ function App(){
     setShowAddExpense(false);
   }
 
+  async function updateExpense(id, payload){
+    const { data, error } = await supabase.from('expenses').update(payload).eq('id', id).select().single();
+    if (!error) setExpenses(expenses.map(e => e.id === id ? data : e));
+    setEditingExpense(null);
+  }
+
   async function deleteExpense(id){
     await supabase.from('expenses').delete().eq('id', id);
     setExpenses(expenses.filter(e => e.id !== id));
@@ -434,12 +452,15 @@ function App(){
 
       <button className="add-btn" onClick={() => setShowAddExpense(true)}>+ Ajouter une dépense</button>
 
+      <div className="section-title">Graphiques</div>
+      <Charts categories={categories} allocations={allocations} expenses={expenses} />
+
       <div className="section-title">Dépenses de la période</div>
       {expenses.length === 0 && <div className="empty-note">Aucune dépense enregistrée pour l'instant.</div>}
       {expenses.map(e => {
         const cat = categories.find(c => c.id === e.category_id);
         return (
-          <div className="expense-row" key={e.id}>
+          <div className="expense-row" key={e.id} onClick={() => setEditingExpense(e)}>
             <div className="expense-left">
               <div className="dot" style={{"--cat-color": cat ? cat.color : '#999', background: cat ? cat.color : '#999'}}></div>
               <div className="expense-info">
@@ -449,7 +470,7 @@ function App(){
             </div>
             <div className="expense-right">
               <div className="expense-amount">{fmt(e.amount)}</div>
-              <button className="del-btn" onClick={() => deleteExpense(e.id)} aria-label="Supprimer">✕</button>
+              <button className="del-btn" onClick={ev => { ev.stopPropagation(); deleteExpense(e.id); }} aria-label="Supprimer">✕</button>
             </div>
           </div>
         );
@@ -464,6 +485,16 @@ function App(){
           onSubmit={addExpense}
         />
       )}
+      {editingExpense && (
+        <AddExpenseSheet
+          categories={categories}
+          author={author}
+          onSaveAuthor={saveAuthor}
+          expense={editingExpense}
+          onClose={() => setEditingExpense(null)}
+          onSubmit={payload => updateExpense(editingExpense.id, payload)}
+        />
+      )}
       {showAllocEdit && (
         <AllocEditSheet
           categories={categories}
@@ -476,23 +507,24 @@ function App(){
   );
 }
 
-function AddExpenseSheet({ categories, author, onSaveAuthor, onClose, onSubmit }){
-  const [categoryId, setCategoryId] = useState(categories[0] ? categories[0].id : null);
-  const [label, setLabel] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0,10));
+function AddExpenseSheet({ categories, author, onSaveAuthor, expense, onClose, onSubmit }){
+  const isEdit = !!expense;
+  const [categoryId, setCategoryId] = useState(expense ? expense.category_id : (categories[0] ? categories[0].id : null));
+  const [label, setLabel] = useState(expense ? expense.label : '');
+  const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
+  const [date, setDate] = useState(expense ? expense.date : new Date().toISOString().slice(0,10));
   const [name, setName] = useState(author);
 
   function submit(){
     if (!categoryId || !amount || !label) return;
     onSaveAuthor(name);
-    onSubmit({ category_id: categoryId, label, amount: parseFloat(amount.replace(',', '.')), date });
+    onSubmit({ category_id: categoryId, label, amount: parseFloat(String(amount).replace(',', '.')), date });
   }
 
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h2>Ajouter une dépense</h2>
+        <h2>{isEdit ? 'Modifier la dépense' : 'Ajouter une dépense'}</h2>
         <div className="field">
           <label>Catégorie</label>
           <div className="cat-choice">
@@ -524,6 +556,66 @@ function AddExpenseSheet({ categories, author, onSaveAuthor, onClose, onSubmit }
           <button className="btn-secondary" onClick={onClose}>Annuler</button>
           <button className="btn-primary" onClick={submit}>Enregistrer</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Charts({ categories, allocations, expenses }){
+  const pieRef = React.useRef(null);
+  const barRef = React.useRef(null);
+  const pieChart = React.useRef(null);
+  const barChart = React.useRef(null);
+
+  const spentByCat = categories.map(c => expenses.filter(e => e.category_id === c.id).reduce((s,e) => s + Number(e.amount), 0));
+  const allocByCat = categories.map(c => {
+    const a = allocations.find(a => a.category_id === c.id);
+    return a ? Number(a.allocated) : 0;
+  });
+  const hasData = spentByCat.some(v => v > 0);
+
+  useEffect(() => {
+    if (!window.Chart) return;
+    if (pieChart.current) { pieChart.current.destroy(); pieChart.current = null; }
+    if (hasData && pieRef.current) {
+      pieChart.current = new Chart(pieRef.current, {
+        type: 'doughnut',
+        data: {
+          labels: categories.map(c => c.name),
+          datasets: [{ data: spentByCat, backgroundColor: categories.map(c => c.color) }]
+        },
+        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, maintainAspectRatio: false }
+      });
+    }
+    if (barChart.current) { barChart.current.destroy(); barChart.current = null; }
+    if (barRef.current) {
+      barChart.current = new Chart(barRef.current, {
+        type: 'bar',
+        data: {
+          labels: categories.map(c => c.name),
+          datasets: [
+            { label: 'Alloué', data: allocByCat, backgroundColor: '#C9C0A4' },
+            { label: 'Dépensé', data: spentByCat, backgroundColor: categories.map(c => c.color) }
+          ]
+        },
+        options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+      });
+    }
+    return () => {
+      if (pieChart.current) pieChart.current.destroy();
+      if (barChart.current) barChart.current.destroy();
+    };
+  }, [JSON.stringify(spentByCat), JSON.stringify(allocByCat), categories.length]);
+
+  return (
+    <div className="charts-row">
+      <div className="chart-card">
+        <h3>Répartition des dépenses</h3>
+        {hasData ? <div className="chart-wrap"><canvas ref={pieRef}></canvas></div> : <div className="empty-note">Pas encore de dépenses.</div>}
+      </div>
+      <div className="chart-card">
+        <h3>Alloué vs dépensé</h3>
+        <div className="chart-wrap"><canvas ref={barRef}></canvas></div>
       </div>
     </div>
   );
