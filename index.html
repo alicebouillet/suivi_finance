@@ -361,13 +361,15 @@ function App(){
   async function addExpense(payload){
     const withAuthor = { ...payload, period_id: currentPeriod.id, author };
     const { data, error } = await supabase.from('expenses').insert(withAuthor).select().single();
-    if (!error) setExpenses([data, ...expenses]);
+    if (error) { console.error(error); alert("Erreur à l'ajout : " + error.message); return; }
+    setExpenses([data, ...expenses]);
     setShowAddExpense(false);
   }
 
   async function updateExpense(id, payload){
     const { data, error } = await supabase.from('expenses').update(payload).eq('id', id).select().single();
-    if (!error) setExpenses(expenses.map(e => e.id === id ? data : e));
+    if (error) { console.error(error); alert("Erreur à la modification : " + error.message); return; }
+    setExpenses(expenses.map(e => e.id === id ? data : e));
     setEditingExpense(null);
   }
 
