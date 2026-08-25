@@ -294,7 +294,7 @@ function App(){
     const useRecs = (recs && recs.length ? recs : recurringExpenses).filter(r => r.active);
     if (useRecs.length) {
       await supabase.from('expenses').insert(
-        useRecs.map(r => ({ period_id: data.id, category_id: r.category_id, label: r.label, amount: r.amount, date: startStr, author: 'Auto' }))
+        useRecs.map(r => ({ period_id: data.id, category_id: r.category_id, label: r.label, amount: r.amount, date: startStr, author: 'Auto', is_fixed: true }))
       );
     }
     return data;
@@ -339,8 +339,10 @@ function App(){
     setPeriodIndex(updated.length - 1);
   }
 
-  function spentFor(categoryId){
-    return expenses.filter(e => e.category_id === categoryId).reduce((s,e) => s + Number(e.amount), 0);
+  function spentFor(categoryId, isFixed){
+    return expenses
+      .filter(e => e.category_id === categoryId && (isFixed === undefined || !!e.is_fixed === isFixed))
+      .reduce((s,e) => s + Number(e.amount), 0);
   }
   function allocFor(categoryId){
     const a = allocations.find(a => a.category_id === categoryId);
@@ -351,7 +353,9 @@ function App(){
     // basé sur les catégories affichées, pas sur les allocations brutes (peut contenir des lignes orphelines)
     const allocated = categories.reduce((s,c) => s + allocFor(c.id), 0);
     const spent = expenses.reduce((s,e) => s + Number(e.amount), 0);
-    return { allocated, spent, remaining: allocated - spent };
+    const fixedSpent = expenses.filter(e => e.is_fixed).reduce((s,e) => s + Number(e.amount), 0);
+    const variableSpent = spent - fixedSpent;
+    return { allocated, spent, remaining: allocated - spent, fixedSpent, variableSpent };
   }, [categories, allocations, expenses]);
 
   async function addExpense(payload){
@@ -462,46 +466,49 @@ function App(){
         </div>
       </div>
 
-      {['fixe','variable'].map(type => {
-        const catsOfType = categories.filter(c => c.type === type);
-        if (!catsOfType.length) return null;
-        const subAlloc = catsOfType.reduce((s,c) => s + allocFor(c.id), 0);
-        const subSpent = catsOfType.reduce((s,c) => s + spentFor(c.id), 0);
-        return (
-          <div key={type}>
-            <div className="section-title" style={{margin:'20px 2px 10px'}}>
-              {type === 'fixe' ? 'Charges fixes' : 'Charges variables'}
-              <span className="mono" style={{fontSize:'0.75rem', opacity:0.8, marginLeft:8}}>{fmt(subSpent)} / {fmt(subAlloc)}</span>
-            </div>
-            {catsOfType.map(cat => {
-              const spent = spentFor(cat.id);
-              const alloc = allocFor(cat.id);
-              const pct = alloc > 0 ? Math.min(100, (spent/alloc)*100) : (spent > 0 ? 100 : 0);
-              const over = spent > alloc;
-              return (
-                <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
-                  <div className="envelope-top">
-                    <div>
-                      <div className="envelope-name">{cat.name}</div>
-                      <div className="envelope-type">{cat.type}</div>
-                    </div>
-                    <div className="envelope-nums">
-                      <div className="spent">{fmt(spent)}</div>
-                      <div className="of">sur {fmt(alloc)}</div>
-                    </div>
-                  </div>
-                  <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
-                  <div className="envelope-footer">
-                    <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
-                      {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
-                    </span>
-                  </div>
+      <div className="summary-row">
+        <div className="summary-card">
+          <div className="k">Dont fixe</div>
+          <div className="v mono">{fmt(totals.fixedSpent)}</div>
+        </div>
+        <div className="summary-card">
+          <div className="k">Dont variable</div>
+          <div className="v mono">{fmt(totals.variableSpent)}</div>
+        </div>
+      </div>
+
+      <div>
+        {categories.map(cat => {
+          const spent = spentFor(cat.id);
+          const alloc = allocFor(cat.id);
+          const fixedSpent = spentFor(cat.id, true);
+          const variableSpent = spentFor(cat.id, false);
+          const pct = alloc > 0 ? Math.min(100, (spent/alloc)*100) : (spent > 0 ? 100 : 0);
+          const over = spent > alloc;
+          return (
+            <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
+              <div className="envelope-top">
+                <div>
+                  <div className="envelope-name">{cat.name}</div>
                 </div>
-              );
-            })}
-          </div>
-        );
-      })}
+                <div className="envelope-nums">
+                  <div className="spent">{fmt(spent)}</div>
+                  <div className="of">sur {fmt(alloc)}</div>
+                </div>
+              </div>
+              <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
+              <div className="envelope-footer">
+                <span className="remaining">
+                  Fixe {fmt(fixedSpent)} · Variable {fmt(variableSpent)}
+                </span>
+                <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
+                  {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowAllocEdit(true)}>Ajuster les montants alloués de cette période</button>
       <button className="edit-alloc" style={{marginTop:'6px', display:'block'}} onClick={() => setShowRecurringManage(true)}>Gérer les dépenses fixes récurrentes (loyer, électricité, internet…)</button>
 
@@ -520,7 +527,7 @@ function App(){
               <div className="dot" style={{"--cat-color": cat ? cat.color : '#999', background: cat ? cat.color : '#999'}}></div>
               <div className="expense-info">
                 <div className="label">{e.label}</div>
-                <div className="meta">{fmtDateShort(e.date)} · {cat ? cat.name : ''}{e.author ? ' · ' + e.author : ''}</div>
+                <div className="meta">{fmtDateShort(e.date)} · {cat ? cat.name : ''} · {e.is_fixed ? 'fixe' : 'variable'}{e.author ? ' · ' + e.author : ''}</div>
               </div>
             </div>
             <div className="expense-right">
@@ -585,12 +592,13 @@ function AddExpenseSheet({ categories, author, onSaveAuthor, expense, onClose, o
   const [label, setLabel] = useState(expense ? expense.label : '');
   const [amount, setAmount] = useState(expense ? String(expense.amount) : '');
   const [date, setDate] = useState(expense ? expense.date : new Date().toISOString().slice(0,10));
+  const [isFixed, setIsFixed] = useState(expense ? !!expense.is_fixed : false);
   const [name, setName] = useState(author);
 
   function submit(){
     if (!categoryId || !amount || !label) return;
     onSaveAuthor(name);
-    onSubmit({ category_id: categoryId, label, amount: parseFloat(String(amount).replace(',', '.')), date });
+    onSubmit({ category_id: categoryId, label, amount: parseFloat(String(amount).replace(',', '.')), date, is_fixed: isFixed });
   }
 
   return (
@@ -619,6 +627,13 @@ function AddExpenseSheet({ categories, author, onSaveAuthor, expense, onClose, o
         <div className="field">
           <label>Date</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Type</label>
+          <div className="cat-choice">
+            <button type="button" className={!isFixed ? "active" : ""} style={{"--cat-color": 'var(--teal)'}} onClick={() => setIsFixed(false)}>Variable</button>
+            <button type="button" className={isFixed ? "active" : ""} style={{"--cat-color": 'var(--clay)'}} onClick={() => setIsFixed(true)}>Fixe</button>
+          </div>
         </div>
         <div className="field">
           <label>Ton prénom</label>
