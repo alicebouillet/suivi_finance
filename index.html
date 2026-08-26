@@ -225,10 +225,12 @@ function App(){
   const [categories, setCategories] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [periodIndex, setPeriodIndex] = useState(0);
+  const [allocations, setAllocations] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [showAllocEdit, setShowAllocEdit] = useState(false);
   const [showPeriodEdit, setShowPeriodEdit] = useState(false);
   const [showIncomeManage, setShowIncomeManage] = useState(false);
   const [recurringExpenses, setRecurringExpenses] = useState([]);
@@ -285,6 +287,12 @@ function App(){
       start_date: startStr, end_date: endStr, label
     }).select().single();
     if (error) { console.error(error); return null; }
+    const useCats = cats && cats.length ? cats : categories;
+    if (useCats.length) {
+      await supabase.from('period_allocations').insert(
+        useCats.map(c => ({ period_id: data.id, category_id: c.id, allocated: c.default_allocated }))
+      );
+    }
     const useRecs = (recs && recs.length ? recs : recurringExpenses).filter(r => r.active);
     if (useRecs.length) {
       await supabase.from('expenses').insert(
@@ -301,6 +309,8 @@ function App(){
   }, [currentPeriod && currentPeriod.id]);
 
   async function loadPeriodData(periodId){
+    const { data: allocs } = await supabase.from('period_allocations').select('*').eq('period_id', periodId);
+    setAllocations(allocs || []);
     const { data: incomeRows, error: incomeError } = await supabase.from('incomes').select('*').eq('period_id', periodId).order('created_at');
     if (incomeError) { console.error(incomeError); setIncomes([]); } else setIncomes(incomeRows || []);
     const { data: exps } = await supabase.from('expenses').select('*').eq('period_id', periodId).order('date', { ascending:false });
@@ -337,6 +347,10 @@ function App(){
     return expenses
       .filter(e => e.category_id === categoryId && (isFixed === undefined || !!e.is_fixed === isFixed))
       .reduce((s,e) => s + Number(e.amount), 0);
+  }
+  function allocFor(categoryId){
+    const allocation = allocations.find(a => a.category_id === categoryId);
+    return allocation ? Number(allocation.allocated) : 0;
   }
   const totals = useMemo(() => {
     const income = incomes.reduce((s,i) => s + Number(i.amount), 0);
@@ -397,6 +411,14 @@ function App(){
       setPeriodIndex(updated.findIndex(p => p.id === data.id));
     }
     setShowPeriodEdit(false);
+  }
+
+  async function updateAllocations(newAllocs){
+    for (const allocation of newAllocs) {
+      await supabase.from('period_allocations').update({ allocated: allocation.allocated }).eq('id', allocation.id);
+    }
+    setAllocations(newAllocs);
+    setShowAllocEdit(false);
   }
 
   async function addRecurring(payload){
@@ -498,8 +520,11 @@ function App(){
       <div>
         {categories.map(cat => {
           const spent = spentFor(cat.id);
+          const alloc = allocFor(cat.id);
           const fixedSpent = spentFor(cat.id, true);
           const variableSpent = spentFor(cat.id, false);
+          const pct = alloc > 0 ? Math.min(100, (spent / alloc) * 100) : (spent > 0 ? 100 : 0);
+          const over = spent > alloc;
           return (
             <div className="envelope" key={cat.id} style={{"--cat-color": cat.color}}>
               <div className="envelope-top">
@@ -508,17 +533,23 @@ function App(){
                 </div>
                 <div className="envelope-nums">
                   <div className="spent">{fmt(spent)}</div>
+                  <div className="of">sur {fmt(alloc)}</div>
                 </div>
               </div>
+              <div className="bar-track"><div className={"bar-fill" + (over ? " over" : "")} style={{width: pct + "%"}}></div></div>
               <div className="envelope-footer">
                 <span className="remaining">
                   Fixe {fmt(fixedSpent)} · Variable {fmt(variableSpent)}
+                </span>
+                <span className={"remaining" + (alloc - spent < 0 ? " neg" : "")}>
+                  {alloc - spent >= 0 ? `${fmt(alloc - spent)} restants` : `${fmt(Math.abs(alloc - spent))} en dépassement`}
                 </span>
               </div>
             </div>
           );
         })}
       </div>
+      <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowAllocEdit(true)}>Ajuster les montants alloués de cette période</button>
       <button className="edit-alloc" style={{marginTop:'2px'}} onClick={() => setShowIncomeManage(true)}>Gérer mes revenus (salaire, aide, prime…)</button>
       <button className="edit-alloc" style={{marginTop:'6px', display:'block'}} onClick={() => setShowRecurringManage(true)}>Gérer les dépenses fixes récurrentes (loyer, électricité, internet…)</button>
 
@@ -565,6 +596,14 @@ function App(){
           expense={editingExpense}
           onClose={() => setEditingExpense(null)}
           onSubmit={payload => updateExpense(editingExpense.id, payload)}
+        />
+      )}
+      {showAllocEdit && (
+        <AllocEditSheet
+          categories={categories}
+          allocations={allocations}
+          onClose={() => setShowAllocEdit(false)}
+          onSubmit={updateAllocations}
         />
       )}
       {showIncomeManage && (
@@ -650,6 +689,43 @@ function AddExpenseSheet({ categories, author, onSaveAuthor, expense, onClose, o
           <label>Ton prénom</label>
           <input value={name} onChange={e => setName(e.target.value)} placeholder="Pour savoir qui a dépensé quoi" />
         </div>
+        <div className="sheet-actions">
+          <button className="btn-secondary" onClick={onClose}>Annuler</button>
+          <button className="btn-primary" onClick={submit}>Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AllocEditSheet({ categories, allocations, onClose, onSubmit }){
+  const [values, setValues] = useState(Object.fromEntries(allocations.map(a => [a.id, a.allocated])));
+
+  function submit(){
+    const updated = allocations.map(a => ({
+      ...a,
+      allocated: parseFloat(String(values[a.id]).replace(',', '.')) || 0
+    }));
+    onSubmit(updated);
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e => e.stopPropagation()}>
+        <h2>Montants alloués par catégorie</h2>
+        {allocations.map(a => {
+          const cat = categories.find(c => c.id === a.category_id);
+          if (!cat) return null;
+          return (
+            <div className="alloc-row" key={a.id}>
+              <div className="name">
+                <span className="dot" style={{background: cat.color, width:9, height:9, borderRadius:'50%', display:'inline-block'}}></span>
+                {cat.name}
+              </div>
+              <input value={values[a.id]} onChange={e => setValues({...values, [a.id]: e.target.value})} inputMode="decimal" />
+            </div>
+          );
+        })}
         <div className="sheet-actions">
           <button className="btn-secondary" onClick={onClose}>Annuler</button>
           <button className="btn-primary" onClick={submit}>Enregistrer</button>
