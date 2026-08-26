@@ -782,20 +782,21 @@ function Charts({ categories, expenses, incomeTotal }){
 
   useEffect(() => {
     if (!window.Chart) return;
-    if (pieChart.current) { pieChart.current.destroy(); pieChart.current = null; }
-    if (hasData && pieRef.current) {
-      pieChart.current = new Chart(pieRef.current, {
+    try {
+      if (pieChart.current) { pieChart.current.destroy(); pieChart.current = null; }
+      if (hasData && pieRef.current) {
+        pieChart.current = new window.Chart(pieRef.current, {
         type: 'doughnut',
         data: {
           labels: categories.map(c => c.name),
           datasets: [{ data: spentByCat, backgroundColor: categories.map(c => c.color) }]
         },
         options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, maintainAspectRatio: false }
-      });
-    }
-    if (barChart.current) { barChart.current.destroy(); barChart.current = null; }
-    if (barRef.current) {
-      barChart.current = new Chart(barRef.current, {
+        });
+      }
+      if (barChart.current) { barChart.current.destroy(); barChart.current = null; }
+      if (barRef.current) {
+        barChart.current = new window.Chart(barRef.current, {
         type: 'bar',
         data: {
           labels: ['Période'],
@@ -805,7 +806,10 @@ function Charts({ categories, expenses, incomeTotal }){
           ]
         },
         options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-      });
+        });
+      }
+    } catch (error) {
+      console.error('Erreur graphique:', error);
     }
     return () => {
       if (pieChart.current) pieChart.current.destroy();
@@ -939,8 +943,26 @@ function AllocEditSheet({ categories, allocations, onClose, onSubmit }){
   );
 }
 
+class AppErrorBoundary extends React.Component {
+  constructor(props){
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error){
+    return { error };
+  }
+
+  render(){
+    if (this.state.error) {
+      return <div className="setup"><h2 className="serif">Erreur de chargement</h2><p>{this.state.error.message}</p><button className="btn-primary" onClick={() => location.reload()}>Recharger</button></div>;
+    }
+    return this.props.children;
+  }
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<AppErrorBoundary><App /></AppErrorBoundary>);
 </script>
 </body>
 </html>
