@@ -537,9 +537,6 @@ function App(){
                 <span className="remaining">
                   Fixe {fmt(fixedSpent)} · Variable {fmt(variableSpent)}
                 </span>
-                <span className={"remaining" + (alloc-spent < 0 ? " neg" : "")}>
-                  {alloc-spent >= 0 ? `${fmt(alloc-spent)} restants` : `${fmt(Math.abs(alloc-spent))} en dépassement`}
-                </span>
               </div>
             </div>
           );
