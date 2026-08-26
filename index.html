@@ -225,12 +225,10 @@ function App(){
   const [categories, setCategories] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [periodIndex, setPeriodIndex] = useState(0);
-  const [allocations, setAllocations] = useState([]);
   const [incomes, setIncomes] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [showAllocEdit, setShowAllocEdit] = useState(false);
   const [showPeriodEdit, setShowPeriodEdit] = useState(false);
   const [showIncomeManage, setShowIncomeManage] = useState(false);
   const [recurringExpenses, setRecurringExpenses] = useState([]);
@@ -287,12 +285,6 @@ function App(){
       start_date: startStr, end_date: endStr, label
     }).select().single();
     if (error) { console.error(error); return null; }
-    const useCats = cats && cats.length ? cats : categories;
-    if (useCats.length) {
-      await supabase.from('period_allocations').insert(
-        useCats.map(c => ({ period_id: data.id, category_id: c.id, allocated: c.default_allocated }))
-      );
-    }
     const useRecs = (recs && recs.length ? recs : recurringExpenses).filter(r => r.active);
     if (useRecs.length) {
       await supabase.from('expenses').insert(
@@ -309,8 +301,6 @@ function App(){
   }, [currentPeriod && currentPeriod.id]);
 
   async function loadPeriodData(periodId){
-    const { data: allocs } = await supabase.from('period_allocations').select('*').eq('period_id', periodId);
-    setAllocations(allocs || []);
     const { data: incomeRows, error: incomeError } = await supabase.from('incomes').select('*').eq('period_id', periodId).order('created_at');
     if (incomeError) { console.error(incomeError); setIncomes([]); } else setIncomes(incomeRows || []);
     const { data: exps } = await supabase.from('expenses').select('*').eq('period_id', periodId).order('date', { ascending:false });
@@ -348,11 +338,6 @@ function App(){
       .filter(e => e.category_id === categoryId && (isFixed === undefined || !!e.is_fixed === isFixed))
       .reduce((s,e) => s + Number(e.amount), 0);
   }
-  function allocFor(categoryId){
-    const a = allocations.find(a => a.category_id === categoryId);
-    return a ? Number(a.allocated) : 0;
-  }
-
   const totals = useMemo(() => {
     const income = incomes.reduce((s,i) => s + Number(i.amount), 0);
     const spent = expenses.reduce((s,e) => s + Number(e.amount), 0);
@@ -397,14 +382,6 @@ function App(){
   async function deleteExpense(id){
     await supabase.from('expenses').delete().eq('id', id);
     setExpenses(expenses.filter(e => e.id !== id));
-  }
-
-  async function updateAllocations(newAllocs){
-    for (const a of newAllocs) {
-      await supabase.from('period_allocations').update({ allocated: a.allocated }).eq('id', a.id);
-    }
-    setAllocations(newAllocs);
-    setShowAllocEdit(false);
   }
 
   async function updatePeriod(startStr, endStr){
@@ -896,46 +873,6 @@ function RecurringRow({ recurring, categories, onUpdate, onDelete }){
       </div>
       <input value={amount} onChange={e => setAmount(e.target.value)} onBlur={saveAmount} inputMode="decimal" />
       <button className="del-btn" onClick={() => onDelete(recurring.id)} aria-label="Supprimer">✕</button>
-    </div>
-  );
-}
-
-function AllocEditSheet({ categories, allocations, onClose, onSubmit }){
-  const [values, setValues] = useState(
-    Object.fromEntries(allocations.map(a => [a.id, a.allocated]))
-  );
-
-  function submit(){
-    const updated = allocations.map(a => ({ ...a, allocated: parseFloat(String(values[a.id]).replace(',', '.')) || 0 }));
-    onSubmit(updated);
-  }
-
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="sheet" onClick={e => e.stopPropagation()}>
-        <h2>Montants alloués — cette période</h2>
-        {allocations.map(a => {
-          const cat = categories.find(c => c.id === a.category_id);
-          if (!cat) return null;
-          return (
-            <div className="alloc-row" key={a.id}>
-              <div className="name">
-                <span className="dot" style={{background: cat.color, width:9, height:9, borderRadius:'50%', display:'inline-block'}}></span>
-                {cat.name}
-              </div>
-              <input
-                value={values[a.id]}
-                onChange={e => setValues({ ...values, [a.id]: e.target.value })}
-                inputMode="decimal"
-              />
-            </div>
-          );
-        })}
-        <div className="sheet-actions">
-          <button className="btn-secondary" onClick={onClose}>Annuler</button>
-          <button className="btn-primary" onClick={submit}>Enregistrer</button>
-        </div>
-      </div>
     </div>
   );
 }
