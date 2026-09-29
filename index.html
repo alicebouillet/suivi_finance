@@ -345,7 +345,7 @@ function App(){
 
   function spentFor(categoryId, isFixed){
     return expenses
-      .filter(e => e.category_id === categoryId && (isFixed === undefined || !!e.is_fixed === isFixed))
+      .filter(e => String(e.category_id) === String(categoryId) && (isFixed === undefined || !!e.is_fixed === isFixed))
       .reduce((s,e) => s + Number(e.amount), 0);
   }
   function allocFor(categoryId){
