@@ -313,8 +313,31 @@ function App(){
     setAllocations(allocs || []);
     const { data: incomeRows, error: incomeError } = await supabase.from('incomes').select('*').eq('period_id', periodId).order('created_at');
     if (incomeError) { console.error(incomeError); setIncomes([]); } else setIncomes(incomeRows || []);
-    const { data: exps } = await supabase.from('expenses').select('*').eq('period_id', periodId).order('date', { ascending:false });
-    setExpenses(exps || []);
+    const { data: exps, error: expensesError } = await supabase.from('expenses').select('*').eq('period_id', periodId).order('date', { ascending:false });
+    if (expensesError) { console.error(expensesError); setExpenses([]); return; }
+    const periodExpenses = exps || [];
+    const { data: recurring, error: recurringError } = await supabase.from('recurring_expenses').select('*').eq('active', true);
+    if (recurringError) { console.error(recurringError); setExpenses(periodExpenses); return; }
+    const missingRecurring = (recurring || []).filter(r => !periodExpenses.some(e =>
+      e.is_fixed && e.author === 'Auto' && String(e.category_id) === String(r.category_id) && e.label === r.label
+    ));
+    if (missingRecurring.length) {
+      const { data: inserted, error } = await supabase.from('expenses').insert(
+        missingRecurring.map(r => ({
+          period_id: periodId,
+          category_id: r.category_id,
+          label: r.label,
+          amount: r.amount,
+          date: currentPeriod.start_date,
+          author: 'Auto',
+          is_fixed: true
+        }))
+      ).select();
+      if (error) console.error(error);
+      else periodExpenses.push(...(inserted || []));
+    }
+    periodExpenses.sort((a, b) => b.date.localeCompare(a.date));
+    setExpenses(periodExpenses);
   }
 
   async function goPrev(){
@@ -345,7 +368,7 @@ function App(){
 
   function spentFor(categoryId, isFixed){
     return expenses
-      .filter(e => String(e.category_id) === String(categoryId) && (isFixed === undefined || !!e.is_fixed === isFixed))
+      .filter(e => e.category_id === categoryId && (isFixed === undefined || !!e.is_fixed === isFixed))
       .reduce((s,e) => s + Number(e.amount), 0);
   }
   function allocFor(categoryId){
