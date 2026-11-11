@@ -325,6 +325,10 @@ function App(){
     if (currentPeriod) loadPeriodData(currentPeriod.id);
   }, [currentPeriod && currentPeriod.id]);
 
+  useEffect(() => {
+    if (expenseDate && !expenses.some(expense => expense.date === expenseDate)) setExpenseDate('');
+  }, [expenses, expenseDate]);
+
   async function loadPeriodData(periodId){
     const { data: allocs } = await supabase.from('period_allocations').select('*').eq('period_id', periodId);
     setAllocations(allocs || []);
