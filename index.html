@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Le Carnet — suivi des dépenses</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Josefin+Slab:wght@400;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
@@ -14,44 +14,41 @@
 <script src="config.js"></script>
 <style>
   :root{
-    --ink: #16302B;
-    --ink-soft: #234139;
-    --paper: #EFE9D8;
-    --paper-dim: #E4DDC8;
-    --line: #C9C0A4;
-    --text: #1E2A22;
-    --text-dim: #5B6459;
-    --clay: #C1642F;
-    --teal: #3E7C74;
-    --amber: #D9A441;
-    --moss: #6B8F47;
+    --ink: #30618C;
+    --ink-soft: #234968;
+    --paper: #F7FAFC;
+    --paper-dim: #D0DDE2;
+    --line: #B9D0E4;
+    --text: #18374F;
+    --text-dim: #486477;
+    --teal: #30618C;
+    --amber: #F2B705;
     --danger: #A6402F;
   }
   *{box-sizing:border-box;}
   body{
     margin:0;
-    background:var(--ink);
+    background:#D0DDE2;
     background-image:
-      radial-gradient(ellipse at top left, rgba(255,255,255,0.05), transparent 55%);
+      linear-gradient(135deg, #B9D0E4 0%, #D0DDE2 55%, #FAE08F 150%);
     color:var(--text);
     font-family:'Inter', sans-serif;
     min-height:100vh;
   }
   .mono{font-family:'IBM Plex Mono', monospace;}
-  .serif{font-family:'Fraunces', serif;}
+  .serif{font-family:'Josefin Slab', serif;}
   ::selection{background:var(--amber); color:var(--ink);}
 
   #root{max-width:760px; margin:0 auto; padding:20px 16px 80px;}
 
   .brand{
     display:flex; align-items:baseline; justify-content:space-between;
-    padding:10px 2px 22px; color:var(--paper);
+    padding:10px 2px 22px; color:var(--ink-soft);
   }
   .brand h1{
-    font-family:'Fraunces', serif; font-weight:700; font-size:1.5rem; margin:0;
-    letter-spacing:-0.01em;
+    font-family:'Josefin Slab', serif; font-weight:700; font-size:1.8rem; margin:0;
   }
-  .brand .sub{font-size:0.72rem; color:#A9BFB6; letter-spacing:0.06em; text-transform:uppercase; margin-top:3px;}
+  .brand .sub{font-size:0.72rem; color:var(--text-dim); letter-spacing:0.06em; text-transform:uppercase; margin-top:3px;}
 
   .period-bar{
     background:var(--paper); border-radius:14px; padding:14px 16px;
@@ -65,7 +62,7 @@
   }
   .period-bar button.nav:hover{background:var(--paper-dim);}
   .period-label{text-align:center; flex:1;}
-  .period-label .dates{font-family:'Fraunces', serif; font-weight:600; font-size:1.05rem;}
+  .period-label .dates{font-family:'Josefin Slab', serif; font-weight:700; font-size:1.05rem;}
   .period-label .days-left{font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-top:2px;}
 
   .summary-row{display:flex; gap:10px; margin:16px 0 22px;}
@@ -88,7 +85,7 @@
     box-shadow:0 4px 14px rgba(0,0,0,0.12);
   }
   .envelope-top{display:flex; justify-content:space-between; align-items:flex-start;}
-  .envelope-name{font-family:'Fraunces', serif; font-weight:600; font-size:1.05rem;}
+  .envelope-name{font-family:'Josefin Slab', serif; font-weight:700; font-size:1.05rem;}
   .envelope-type{font-size:0.62rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-top:1px;}
   .envelope-nums{text-align:right;}
   .envelope-nums .spent{font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:1rem;}
@@ -107,15 +104,22 @@
   .add-btn{
     width:100%; margin-top:6px; padding:13px; border-radius:12px;
     background:var(--amber); color:var(--ink); border:none;
-    font-family:'Fraunces', serif; font-weight:600; font-size:0.95rem;
+    font-family:'Josefin Slab', serif; font-weight:700; font-size:1rem;
     cursor:pointer; box-shadow:0 6px 16px rgba(0,0,0,0.25);
   }
   .add-btn:active{transform:translateY(1px);}
 
   .section-title{
-    color:var(--paper); font-family:'Fraunces', serif; font-size:0.95rem;
+    color:var(--ink-soft); font-family:'Josefin Slab', serif; font-weight:700; font-size:1.1rem;
     margin:26px 2px 10px; opacity:0.85;
   }
+
+  .expense-filters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+  .expense-filters select{
+    flex:1 1 160px; min-width:0; padding:10px 12px; border:1px solid var(--line);
+    border-radius:8px; background:var(--paper); color:var(--text); font:inherit; font-size:0.85rem;
+  }
+  .expense-filters select:focus{outline:2px solid var(--teal); outline-offset:1px;}
 
   .expense-row{
     display:flex; justify-content:space-between; align-items:center;
@@ -130,7 +134,7 @@
   .expense-amount{font-family:'IBM Plex Mono', monospace; font-weight:600;}
   .del-btn{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1rem; padding:2px 4px;}
   .del-btn:hover{color:var(--danger);}
-  .empty-note{color:#A9BFB6; font-size:0.82rem; text-align:center; padding:16px 0; font-style:italic;}
+  .empty-note{color:var(--text-dim); font-size:0.82rem; text-align:center; padding:16px 0; font-style:italic;}
   .expense-row{cursor:pointer;}
 
   .charts-row{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px;}
@@ -138,7 +142,7 @@
     flex:1; min-width:220px; background:var(--paper); border-radius:12px; padding:14px;
     border:1px solid var(--line);
   }
-  .chart-card h3{font-family:'Fraunces', serif; font-size:0.9rem; margin:0 0 10px;}
+  .chart-card h3{font-family:'Josefin Slab', serif; font-size:1rem; margin:0 0 10px;}
   .chart-card .chart-wrap{position:relative; height:200px;}
   .chart-card .empty-note{padding:8px 0;}
 
@@ -151,7 +155,7 @@
     padding:22px 18px 26px; box-shadow:0 -10px 30px rgba(0,0,0,0.4);
     max-height:88vh; overflow-y:auto;
   }
-  .sheet h2{font-family:'Fraunces', serif; margin:0 0 16px; font-size:1.15rem;}
+  .sheet h2{font-family:'Josefin Slab', serif; margin:0 0 16px; font-size:1.25rem;}
   .field{margin-bottom:14px;}
   .field label{display:block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-dim); margin-bottom:5px;}
   .field input, .field select{
@@ -164,7 +168,7 @@
     padding:9px 13px; border-radius:20px; border:1px solid var(--line); background:#fff;
     font-size:0.85rem; cursor:pointer; display:flex; align-items:center; gap:6px;
   }
-  .cat-choice button.active{background:var(--cat-color); color:#fff; border-color:transparent;}
+  .cat-choice button.active{background:var(--paper-dim); color:var(--text); border-color:var(--cat-color); box-shadow:inset 0 0 0 1px var(--cat-color);}
   .sheet-actions{display:flex; gap:10px; margin-top:18px;}
   .btn-primary{
     flex:1; padding:13px; border-radius:10px; border:none; background:var(--ink);
@@ -178,7 +182,7 @@
   .alloc-row .name{font-size:0.9rem; display:flex; align-items:center; gap:8px;}
   .alloc-row input{width:100px; text-align:right;}
 
-  .loading, .setup{color:var(--paper); text-align:center; padding:60px 20px; line-height:1.6;}
+  .loading, .setup{color:var(--ink-soft); text-align:center; padding:60px 20px; line-height:1.6;}
   .setup code{background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;}
 
   @media (max-width:420px){
@@ -194,7 +198,7 @@
 const { useState, useEffect, useMemo } = React;
 const createClient = window.supabase && window.supabase.createClient;
 
-const CAT_COLORS = { "#C1642F":"clay", "#3E7C74":"teal", "#D9A441":"amber", "#6B8F47":"moss" };
+const CAT_COLORS = { "#C1642F":"#F2B705", "#3E7C74":"#30618C", "#D9A441":"#FAE08F", "#6B8F47":"#D6D494" };
 
 function fmt(n){
   return new Intl.NumberFormat('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}).format(n) + " €";
@@ -218,6 +222,12 @@ function fmtDateShort(dateStr){
   return new Date(dateStr + "T00:00:00").toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
 }
 
+function filterExpenses(expenses, categoryId, date, order){
+  return expenses
+    .filter(expense => (!categoryId || String(expense.category_id) === categoryId) && (!date || expense.date === date))
+    .sort((first, second) => order === 'oldest' ? first.date.localeCompare(second.date) : second.date.localeCompare(first.date));
+}
+
 function App(){
   const [supabase, setSupabase] = useState(null);
   const [configError, setConfigError] = useState(false);
@@ -236,6 +246,9 @@ function App(){
   const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [showRecurringManage, setShowRecurringManage] = useState(false);
   const [author, setAuthor] = useState(localStorage.getItem('carnet_author') || '');
+  const [expenseCategory, setExpenseCategory] = useState('');
+  const [expenseDate, setExpenseDate] = useState('');
+  const [expenseOrder, setExpenseOrder] = useState('newest');
 
   useEffect(() => {
     if (!createClient || typeof SUPABASE_URL === 'undefined' || SUPABASE_URL.includes('TON-PROJET')) {
@@ -251,8 +264,12 @@ function App(){
 
   async function initData(){
     setLoading(true);
-    const { data: cats } = await supabase.from('categories').select('*').order('sort_order');
-    setCategories(cats || []);
+    const { data: categoryRows } = await supabase.from('categories').select('*').order('sort_order');
+    const cats = (categoryRows || []).map(category => ({
+      ...category,
+      color: CAT_COLORS[(category.color || '').toUpperCase()] || category.color
+    }));
+    setCategories(cats);
     const { data: recs } = await supabase.from('recurring_expenses').select('*').order('sort_order');
     setRecurringExpenses(recs || []);
     let { data: pers } = await supabase.from('periods').select('*').order('start_date');
@@ -495,6 +512,8 @@ function App(){
   }
 
   const daysLeft = Math.max(0, Math.ceil((new Date(currentPeriod.end_date) - new Date()) / 86400000) + 1);
+  const expenseDates = [...new Set(expenses.map(expense => expense.date))].sort().reverse();
+  const visibleExpenses = filterExpenses(expenses, expenseCategory, expenseDate, expenseOrder);
 
   return (
     <div>
@@ -582,8 +601,23 @@ function App(){
       <Charts categories={categories} expenses={expenses} incomeTotal={totals.income} />
 
       <div className="section-title">Dépenses de la période</div>
+      <div className="expense-filters">
+        <select aria-label="Filtrer par catégorie" value={expenseCategory} onChange={event => setExpenseCategory(event.target.value)}>
+          <option value="">Toutes les catégories</option>
+          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <select aria-label="Filtrer par date" value={expenseDate} onChange={event => setExpenseDate(event.target.value)}>
+          <option value="">Toutes les dates</option>
+          {expenseDates.map(date => <option key={date} value={date}>{fmtDateLong(date)}</option>)}
+        </select>
+        <select aria-label="Ordre des dépenses" value={expenseOrder} onChange={event => setExpenseOrder(event.target.value)}>
+          <option value="newest">Plus récentes d'abord</option>
+          <option value="oldest">Plus anciennes d'abord</option>
+        </select>
+      </div>
       {expenses.length === 0 && <div className="empty-note">Aucune dépense enregistrée pour l'instant.</div>}
-      {expenses.map(e => {
+      {expenses.length > 0 && visibleExpenses.length === 0 && <div className="empty-note">Aucune dépense ne correspond aux filtres.</div>}
+      {visibleExpenses.map(e => {
         const cat = categories.find(c => c.id === e.category_id);
         return (
           <div className="expense-row" key={e.id} onClick={() => setEditingExpense(e)}>
@@ -874,8 +908,8 @@ function Charts({ categories, expenses, incomeTotal }){
         data: {
           labels: ['Période'],
           datasets: [
-            { label: 'Revenus', data: [incomeTotal], backgroundColor: '#D9A441' },
-            { label: 'Dépensé', data: [expenses.reduce((s,e) => s + Number(e.amount), 0)], backgroundColor: '#C1642F' }
+            { label: 'Revenus', data: [incomeTotal], backgroundColor: '#30618C' },
+            { label: 'Dépensé', data: [expenses.reduce((s,e) => s + Number(e.amount), 0)], backgroundColor: '#F2B705' }
           ]
         },
         options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
